@@ -1,0 +1,120 @@
+*** plugin/qc_info/qc_info.cc.org	2013-06-20 17:34:04.082026235 +0900
+--- plugin/qc_info/qc_info.cc	2013-06-20 17:37:26.377762373 +0900
+***************
+*** 42,47 ****
+--- 42,67 ----
+  #include <table.h>              // ST_SCHEMA_TABLE
+  #include <mysql/plugin.h>
+  
++ inline uint Query_cache_block::headers_len()
++ {
++   return (ALIGN_SIZE(sizeof(Query_cache_block_table)*n_tables) +
++           ALIGN_SIZE(sizeof(Query_cache_block)));
++ }
++ 
++ inline uchar* Query_cache_block::data(void)
++ {
++   return (uchar*)( ((uchar*)this) + headers_len() );
++ }
++ 
++ inline Query_cache_query * Query_cache_block::query()
++ {
++ #ifndef DBUG_OFF
++   if (type != QUERY)
++     query_cache.wreck(__LINE__, "incorrect block type");
++ #endif
++   return (Query_cache_query *) data();
++ }
++ 
+  class Accessible_Query_Cache : public Query_cache {
+  public:
+    HASH *get_queries()
+***************
+*** 58,63 ****
+--- 78,85 ----
+  #define COLUMN_RESULT_BLOCKS_COUNT 2
+  #define COLUMN_RESULT_BLOCKS_SIZE 3
+  #define COLUMN_RESULT_BLOCKS_SIZE_USED 4
++ #define QUERY_CACHE_DB_LENGTH_SIZE 8
++ #define MariaDB_PLUGIN_MATURITY_ALPHA 2
+  
+  /* ST_FIELD_INFO is defined in table.h */
+  static ST_FIELD_INFO qc_info_fields[]=
+***************
+*** 79,85 ****
+    HASH *queries = qc->get_queries();
+  
+    /* one must have PROCESS privilege to see others' queries */
+!   if (check_global_access(thd, PROCESS_ACL, true))
+      return 0;
+  
+    if (qc->try_lock(thd))
+--- 101,107 ----
+    HASH *queries = qc->get_queries();
+  
+    /* one must have PROCESS privilege to see others' queries */
+!   if (check_global_access(thd, PROCESS_ACL))
+      return 0;
+  
+    if (qc->try_lock(thd))
+***************
+*** 121,127 ****
+      /* The database against which the statement is executed is part of the
+         query cache query key
+       */
+!     compile_time_assert(QUERY_CACHE_DB_LENGTH_SIZE == 2); 
+      db= key + statement_text_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE;
+      db_length= uint2korr(db - QUERY_CACHE_DB_LENGTH_SIZE);
+  
+--- 143,149 ----
+      /* The database against which the statement is executed is part of the
+         query cache query key
+       */
+!     compile_time_assert(QUERY_CACHE_DB_LENGTH_SIZE == 8); 
+      db= key + statement_text_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE;
+      db_length= uint2korr(db - QUERY_CACHE_DB_LENGTH_SIZE);
+  
+***************
+*** 193,199 ****
+    Plugin library descriptor
+  */
+  
+! maria_declare_plugin(query_cache_info)
+  {
+    MYSQL_INFORMATION_SCHEMA_PLUGIN,
+    &qc_info_plugin,
+--- 215,221 ----
+    Plugin library descriptor
+  */
+  
+! mysql_declare_plugin(query_cache_info)
+  {
+    MYSQL_INFORMATION_SCHEMA_PLUGIN,
+    &qc_info_plugin,
+***************
+*** 202,213 ****
+    "Lists all queries in the query cache.",
+    PLUGIN_LICENSE_BSD,
+    qc_info_plugin_init, /* Plugin Init */
+!   0,                          /* Plugin Deinit        */
+    0x0100,                     /* version, hex         */
+    NULL,                       /* status variables     */
+    NULL,                       /* system variables     */
+!   "1.0",                      /* version as a string  */
+    MariaDB_PLUGIN_MATURITY_ALPHA
+  }
+! maria_declare_plugin_end;
+  
+--- 224,235 ----
+    "Lists all queries in the query cache.",
+    PLUGIN_LICENSE_BSD,
+    qc_info_plugin_init, /* Plugin Init */
+!   0,                       /* Plugin Deinit        */
+    0x0100,                     /* version, hex         */
+    NULL,                       /* status variables     */
+    NULL,                       /* system variables     */
+!   NULL,                      /* version as a string  */
+    MariaDB_PLUGIN_MATURITY_ALPHA
+  }
+! mysql_declare_plugin_end;
+  
